@@ -25,11 +25,11 @@ import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.BluetoothConnected
-import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.Button
@@ -112,7 +112,7 @@ private fun StatusBar(prefs: AppPrefs, conn: ConnState, live: LiveState, onConne
             // verbindingsstatus
             val (icon, label, color) = when (conn) {
                 ConnState.CONNECTED -> Triple(Icons.Filled.BluetoothConnected, stringResource(R.string.status_connected), neon.good)
-                ConnState.CONNECTING -> Triple(Icons.Filled.BluetoothSearching, stringResource(R.string.status_connecting), neon.warn)
+                ConnState.CONNECTING -> Triple(Icons.AutoMirrored.Filled.BluetoothSearching, stringResource(R.string.status_connecting), neon.warn)
                 ConnState.SIMULATION -> Triple(Icons.Filled.Science, stringResource(R.string.status_simulation), neon.accent2)
                 ConnState.DISCONNECTED -> Triple(Icons.Filled.Bluetooth, stringResource(R.string.status_disconnected), neon.textDim)
             }

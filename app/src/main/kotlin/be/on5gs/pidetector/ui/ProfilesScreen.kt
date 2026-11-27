@@ -152,14 +152,14 @@ fun ProfilesScreen(
 @Composable
 private fun LearnedRow(t: LearnedTarget, cur: DetectorParams, onDelete: (String) -> Unit) {
     val neon = LocalNeon.current
-    val tp = t.params
-    val sameSettings = tp == null || (tp.pw == cur.pw && tp.d1 == cur.d1 && tp.d2 == cur.d2)
+    // geleerd met andere pw/d1/d2? dan telt het voorwerp nu niet mee bij het vergelijken
+    val other = t.params?.takeIf { it.pw != cur.pw || it.d1 != cur.d1 || it.d2 != cur.d2 }
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(t.name, color = neon.text, fontWeight = FontWeight.SemiBold)
             Hint(stringResource(R.string.learned_values, "%.2f".format(t.ratio), t.peak.roundToInt()))
-            if (!sameSettings && tp != null) {
-                val p = tp
+            if (other != null) {
+                val p = other
                 Text(stringResource(R.string.learned_other_settings, p.pw, p.d1, p.d2), color = neon.warn, fontSize = 12.sp)
             }
         }
