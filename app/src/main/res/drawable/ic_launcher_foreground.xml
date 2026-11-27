@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Eigen icoon: zoekspoel (ring) met een PI-afvalcurve, rode neon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- gloed -->
+    <path android:strokeColor="#55FF2D55" android:strokeWidth="9"
+        android:pathData="M54,26 a28,28 0 1,0 0.01,0 z" />
+    <!-- spoel -->
+    <path android:strokeColor="#FFFF2D55" android:strokeWidth="4"
+        android:pathData="M54,26 a28,28 0 1,0 0.01,0 z" />
+    <!-- puls + exponentiële afval -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.2"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M36,62 L42,62 L42,44 L47,44 L47,62 C51,50 55,58 60,60.5 C64,61.6 68,62 72,62" />
+</vector>
