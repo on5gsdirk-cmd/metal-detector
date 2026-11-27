@@ -1,4 +1,6 @@
 // Host-test voor pi_protocol.h:  g++ -std=c++11 -Wall -Wextra -I../spirit_pi_v3 test_protocol.cpp && ./a.out
+#include <limits.h>  // vangt naamconflicten met systeemmacro's (bv. NAME_MAX)
+#include <linux/limits.h>
 #include "pi_protocol.h"
 #include <cassert>
 #include <cstdio>
@@ -75,7 +77,7 @@ int main() {
   bad.f = 0; bad.pw = 9999; bad.d1 = 100; bad.d2 = 50; bad.vcal = 0.0f / 0.0f; bad.avg = 0; bad.name[0] = 0;
   sanitize(bad);
   CHECK(bad.f == FREQ_MIN && bad.pw == PW_MAX && bad.d2 == 110 && bad.vcal == 1.0f && bad.avg == 1);
-  CHECK(strcmp(bad.name, NAME_DEF) == 0);
+  CHECK(strcmp(bad.name, BTNAME_DEF) == 0);
 
   // LineReader
   LineReader rd;

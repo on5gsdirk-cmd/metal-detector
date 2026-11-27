@@ -21,8 +21,8 @@ static const int FREQ_MIN = 20,    FREQ_MAX = 200,   FREQ_DEF = 60;
 static const int AVG_MIN = 1,   AVG_MAX = 32,  AVG_DEF = 4;
 static const float VCAL_MIN = 0.8f, VCAL_MAX = 1.2f, VCAL_DEF = 1.0f;
 static const float LOWBAT_MIN = 0.0f, LOWBAT_MAX = 14.0f, LOWBAT_DEF = 9.5f; // 0 = uit
-static const int NAME_MAX = 31;
-static const char *const NAME_DEF = "ESP32_Spirit_PI-3";
+static const int BTNAME_LEN = 31;
+static const char *const BTNAME_DEF = "ESP32_Spirit_PI-3";
 
 struct Settings {
   int pw;        // pulsbreedte (µs)
@@ -33,13 +33,13 @@ struct Settings {
   float vcal;    // kalibratiefactor batterijspanning
   float lowbat;  // pulsen stoppen onder deze spanning (V), 0 = uit
   bool legacy;   // oud <a/b/c/d>-formaat sturen (N.E.C.O-app)
-  char name[NAME_MAX + 1]; // Bluetooth-naam (actief na herstart)
+  char name[BTNAME_LEN + 1]; // Bluetooth-naam (actief na herstart)
 };
 
 inline void setDefaults(Settings &s) {
   s.pw = PW_DEF; s.d1 = D1_DEF; s.d2 = D2_DEF; s.f = FREQ_DEF; s.avg = AVG_DEF;
   s.vcal = VCAL_DEF; s.lowbat = LOWBAT_DEF; s.legacy = false;
-  strncpy(s.name, NAME_DEF, NAME_MAX); s.name[NAME_MAX] = 0;
+  strncpy(s.name, BTNAME_DEF, BTNAME_LEN); s.name[BTNAME_LEN] = 0;
 }
 
 template <typename T> inline T clampv(T v, T lo, T hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -53,8 +53,8 @@ inline void sanitize(Settings &s) {
   s.avg = clampv(s.avg, AVG_MIN, AVG_MAX);
   if (!(s.vcal >= VCAL_MIN && s.vcal <= VCAL_MAX)) s.vcal = VCAL_DEF; // vangt ook NaN
   if (!(s.lowbat >= LOWBAT_MIN && s.lowbat <= LOWBAT_MAX)) s.lowbat = LOWBAT_DEF;
-  s.name[NAME_MAX] = 0;
-  if (s.name[0] == 0) { strncpy(s.name, NAME_DEF, NAME_MAX); s.name[NAME_MAX] = 0; }
+  s.name[BTNAME_LEN] = 0;
+  if (s.name[0] == 0) { strncpy(s.name, BTNAME_DEF, BTNAME_LEN); s.name[BTNAME_LEN] = 0; }
 }
 
 // ---- commando's -----------------------------------------------------------
@@ -115,7 +115,7 @@ inline Result applyLegacy(Settings &s, char c) {
     case 'j': s.f = clampv(s.f + 10, FREQ_MIN, FREQ_MAX); break;
     case 'k': s.f = clampv(s.f - 10, FREQ_MIN, FREQ_MAX); break;
     case 'p': {
-      char keep[NAME_MAX + 1];
+      char keep[BTNAME_LEN + 1];
       memcpy(keep, s.name, sizeof keep);
       bool legacy = s.legacy;
       setDefaults(s);
@@ -147,7 +147,7 @@ inline Result handleLine(Settings &s, char *line) {
   if (ieq(cmd, "SAVE"))     { r.action = ACT_SAVE; return r; }
   if (ieq(cmd, "PING"))     { r.action = ACT_PING; return r; }
   if (ieq(cmd, "DEFAULTS")) {
-    char keep[NAME_MAX + 1];
+    char keep[BTNAME_LEN + 1];
     memcpy(keep, s.name, sizeof keep);
     setDefaults(s);
     memcpy(s.name, keep, sizeof keep); // naam blijft behouden
@@ -192,7 +192,7 @@ inline Result handleLine(Settings &s, char *line) {
     s.legacy = iv == 1;
   } else if (ieq(key, "name")) {
     size_t len = strlen(val);
-    if (len == 0 || len > (size_t)NAME_MAX) goto range;
+    if (len == 0 || len > (size_t)BTNAME_LEN) goto range;
     for (size_t i = 0; i < len; ++i)
       if (!isprint((unsigned char)val[i]) || val[i] == ',') goto badval;
     memcpy(s.name, val, len); s.name[len] = 0;
