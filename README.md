@@ -68,14 +68,15 @@ Detector → app:
 
 ```
 D,<s1>,<s2>,<vbat>         ~28 Hz, ruwe 12-bit waarden (gemiddelde van de laatste avg pulsen), batterij in V
-CFG,pw=130,d1=20,d2=60,f=60,avg=4,vcal=1.000,lowbat=9.5,legacy=0,name=ESP32_Spirit_PI-3,fw=3.0
-INFO,adc_us=..,pw_us=..,t1_us=..,t2_us=..   gemeten werkelijke timing
+CFG,pw=130,d1=20,d2=60,f=60,avg=4,vcal=1.000,lowbat=9.5,legacy=0,name=ESP32_Spirit_PI-3,fw=3.0.1
+INFO,adc_us=..,pw_us=..,t1_us=..,t2_us=..,split=0|1   gemeten werkelijke timing
 OK  |  OK,reboot  |  ERR,<range|value|syntax|unknown|unknown_key|too_long|lowbat>
 ```
 
 **Timing**: `t1_us` en `t2_us` geven aan wanneer de ADC-conversie werkelijk start, gerekend vanaf het einde van de puls.
-Eén conversie duurt `adc_us` (meestal 10–40 µs, afhankelijk van de core-versie). Ligt d2 minder dan `adc_us` na d1,
-dan komt de tweede meting later dan gevraagd. Vergelijk daarom altijd met `INFO`.
+Eén conversie duurt `adc_us` (± 40 µs met core 3.x, minder met 2.0.x). Past er geen volledige conversie tussen d1 en d2,
+dan meet de firmware automatisch **om beurten** (`split=1` in `INFO`): s1 bij de ene puls, s2 bij de volgende. Elke sample
+valt dan precies op tijd; de prijs is dat een meetpaar twee pulsen kost.
 
 ---
 

@@ -99,7 +99,7 @@ int main() {
   char out[200];
   setDefaults(s);
   formatCfg(s, out, sizeof out);
-  CHECK(strcmp(out, "CFG,pw=130,d1=20,d2=60,f=60,avg=4,vcal=1.000,lowbat=9.5,legacy=0,name=ESP32_Spirit_PI-3,fw=3.0") == 0);
+  CHECK(strcmp(out, "CFG,pw=130,d1=20,d2=60,f=60,avg=4,vcal=1.000,lowbat=9.5,legacy=0,name=ESP32_Spirit_PI-3,fw=3.0.1") == 0);
   formatData(1234, 567, 12.345f, out, sizeof out);
   CHECK(strcmp(out, "D,1234,567,12.35") == 0 || strcmp(out, "D,1234,567,12.34") == 0);
   formatLegacy(s, 567, 12.0f, out, sizeof out);

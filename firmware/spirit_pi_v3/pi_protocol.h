@@ -9,7 +9,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define PI_FW_VERSION "3.0"
+#define PI_FW_VERSION "3.0.1"
 
 namespace pi {
 

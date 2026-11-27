@@ -53,6 +53,7 @@ static float g_vbat = 0.0f;
 static bool g_lowbat = false;
 // werkelijke timing (gemeten), µs
 static float g_adcUs = 0, g_t1Us = 0, g_t2Us = 0, g_pwUs = 0;
+static bool g_split = false;   // om beurten s1/s2 meten (zie measureTask)
 
 // ---- ADC ------------------------------------------------------------------
 #if PI_ADC_IDF5
@@ -107,7 +108,8 @@ static void measureTask(void *) {
   MeasParams p = {};
   int64_t lastBat = 0;
   float vbatFilt = -1;
-  float t1Acc = 0, t2Acc = 0, pwAcc = 0; int tN = 0;
+  float t1Acc = 0, t2Acc = 0, pwAcc = 0; int tN = 0, t1N = 0, t2N = 0;
+  int splitPhase = 0, pendingS1 = 0;
 
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -121,6 +123,7 @@ static void measureTask(void *) {
       esp_timer_start_periodic(g_pulseTimer, 1000000ULL / (uint64_t)p.f);
       portENTER_CRITICAL(&g_mux);
       g_ringFill = 0; g_ringPos = 0;    // middeling opnieuw starten
+      splitPhase = 0;
       portEXIT_CRITICAL(&g_mux);
     }
 
@@ -145,25 +148,49 @@ static void measureTask(void *) {
 
     if (g_lowbat) { pulseLow(); continue; }
 
-    // --- één puls + twee samples, tijdkritisch ---
+    // Past er geen volledige ADC-conversie tussen d1 en d2 (core 3.x: ~40 µs),
+    // dan om beurten meten: s1 bij de ene puls, s2 bij de volgende. Zo valt
+    // elke sample precies op d1 resp. d2 i.p.v. te laat.
+    bool split = (float)(p.d2 - p.d1) < g_adcUs + 4.0f;
+    if (!split) splitPhase = 0;
+
+    // --- één puls + sample(s), tijdkritisch ---
     int64_t tOn = esp_timer_get_time();
     pulseHigh();
     waitUntil(tOn + p.pw);
     pulseLow();
     int64_t tOff = esp_timer_get_time();
-    waitUntil(tOff + p.d1);
-    int64_t ts1 = esp_timer_get_time();
-    int s1 = adcSignal();
-    waitUntil(tOff + p.d2);
-    int64_t ts2 = esp_timer_get_time();
-    int s2 = adcSignal();
-    int64_t tEnd = esp_timer_get_time();
+    int s1 = -1, s2 = -1;
+    int64_t ts1 = 0, ts2 = 0, tEnd = 0;
+    if (!split || splitPhase == 0) {
+      waitUntil(tOff + p.d1);
+      ts1 = esp_timer_get_time();
+      s1 = adcSignal();
+      tEnd = esp_timer_get_time();
+    }
+    if (!split || splitPhase == 1) {
+      waitUntil(tOff + p.d2);
+      ts2 = esp_timer_get_time();
+      s2 = adcSignal();
+      tEnd = esp_timer_get_time();
+    }
     // --- einde tijdkritisch deel ---
 
     pwAcc += (float)(tOff - tOn);
-    t1Acc += (float)(ts1 - tOff);
-    t2Acc += (float)(ts2 - tOff);
+    if (s1 >= 0) { t1Acc += (float)(ts1 - tOff); t1N++; }
+    if (s2 >= 0) { t2Acc += (float)(ts2 - tOff); t2N++; }
     tN++;
+    float conv = (float)(tEnd - (s2 >= 0 ? ts2 : ts1));
+
+    if (split && splitPhase == 0) {       // eerste helft van een paar: s1 bewaren
+      pendingS1 = s1;
+      splitPhase = 1;
+      portENTER_CRITICAL(&g_mux);
+      g_adcUs = g_adcUs * 0.95f + 0.05f * conv;
+      portEXIT_CRITICAL(&g_mux);
+      continue;
+    }
+    if (split) { s1 = pendingS1; splitPhase = 0; }
 
     portENTER_CRITICAL(&g_mux);
     g_ring1[g_ringPos] = s1;
@@ -171,10 +198,13 @@ static void measureTask(void *) {
     g_ringPos = (g_ringPos + 1) % p.avg;
     if (g_ringFill < p.avg) g_ringFill++;
     g_pulseCount++;
-    g_adcUs = g_adcUs * 0.95f + 0.05f * (float)(tEnd - ts2);
+    g_split = split;
+    g_adcUs = g_adcUs * 0.95f + 0.05f * conv;
     if (tN >= 64) {
-      g_pwUs = pwAcc / tN; g_t1Us = t1Acc / tN; g_t2Us = t2Acc / tN;
-      pwAcc = t1Acc = t2Acc = 0; tN = 0;
+      g_pwUs = pwAcc / tN;
+      g_t1Us = t1N ? t1Acc / t1N : 0;
+      g_t2Us = t2N ? t2Acc / t2N : 0;
+      pwAcc = t1Acc = t2Acc = 0; tN = t1N = t2N = 0;
     }
     portEXIT_CRITICAL(&g_mux);
   }
@@ -190,11 +220,11 @@ static void sendCfg() {
   char buf[200];
   portENTER_CRITICAL(&g_mux);
   pi::Settings c = g_cfg;
-  float adc = g_adcUs, t1 = g_t1Us, t2 = g_t2Us, pw = g_pwUs;
+  float adc = g_adcUs, t1 = g_t1Us, t2 = g_t2Us, pw = g_pwUs; bool split = g_split;
   portEXIT_CRITICAL(&g_mux);
   pi::formatCfg(c, buf, sizeof buf);
   sendLine(buf);
-  snprintf(buf, sizeof buf, "INFO,adc_us=%.1f,pw_us=%.1f,t1_us=%.1f,t2_us=%.1f", adc, pw, t1, t2);
+  snprintf(buf, sizeof buf, "INFO,adc_us=%.1f,pw_us=%.1f,t1_us=%.1f,t2_us=%.1f,split=%d", adc, pw, t1, t2, split ? 1 : 0);
   sendLine(buf);
 }
 
@@ -295,6 +325,11 @@ void setup() {
   Serial.begin(115200);
   loadSettings();
   adcInit();
+  {  // ADC-conversietijd meten, zodat de meettaak meteen de juiste modus kiest
+    int64_t t0 = esp_timer_get_time();
+    for (int i = 0; i < 32; ++i) (void)adcSignal();
+    g_adcUs = (float)(esp_timer_get_time() - t0) / 32.0f;
+  }
 
   SerialBT.register_callback(btCallback);
   SerialBT.begin(g_cfg.name);
@@ -362,9 +397,9 @@ void loop() {
     g_lastInfo = nowMs;
     char buf[100];
     portENTER_CRITICAL(&g_mux);
-    float adc = g_adcUs, t1 = g_t1Us, t2 = g_t2Us, pw = g_pwUs;
+    float adc = g_adcUs, t1 = g_t1Us, t2 = g_t2Us, pw = g_pwUs; bool split = g_split;
     portEXIT_CRITICAL(&g_mux);
-    snprintf(buf, sizeof buf, "INFO,adc_us=%.1f,pw_us=%.1f,t1_us=%.1f,t2_us=%.1f", adc, pw, t1, t2);
+    snprintf(buf, sizeof buf, "INFO,adc_us=%.1f,pw_us=%.1f,t1_us=%.1f,t2_us=%.1f,split=%d", adc, pw, t1, t2, split ? 1 : 0);
     Serial.println(buf);
   }
 
