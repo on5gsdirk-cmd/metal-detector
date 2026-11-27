@@ -54,6 +54,8 @@ int main() {
   CHECK(r.action == ACT_SET && r.needsReboot && strcmp(s.name, "Mijn Detector") == 0);
   CHECK(run(s, "SET name a,b").action == ACT_ERROR);
   CHECK(run(s, "SET lowbat 0").action == ACT_SET && s.lowbat == 0.0f);
+  CHECK(run(s, "SET rlow 22").action == ACT_SET && s.rlow == 22);
+  CHECK(run(s, "SET rlow 5").action == ACT_ERROR && s.rlow == 22);
 
   CHECK(run(s, "SET").action == ACT_ERROR);
   CHECK(run(s, "SET pw").action == ACT_ERROR);
@@ -99,7 +101,7 @@ int main() {
   char out[200];
   setDefaults(s);
   formatCfg(s, out, sizeof out);
-  CHECK(strcmp(out, "CFG,pw=130,d1=20,d2=60,f=60,avg=4,vcal=1.000,lowbat=9.5,legacy=0,name=ESP32_Spirit_PI-3,fw=3.0.1") == 0);
+  CHECK(strcmp(out, "CFG,pw=130,d1=20,d2=60,f=60,avg=4,vcal=1.000,lowbat=9.5,rlow=47,legacy=0,name=ESP32_Spirit_PI-3,fw=3.0.1") == 0);
   formatData(1234, 567, 12.345f, out, sizeof out);
   CHECK(strcmp(out, "D,1234,567,12.35") == 0 || strcmp(out, "D,1234,567,12.34") == 0);
   formatLegacy(s, 567, 12.0f, out, sizeof out);

@@ -30,8 +30,8 @@
 static const int PULSE_PIN = 13;   // naar BC547 (R3)
 // Signaal: GPIO36 = VP = ADC1 kanaal 0. Batterij: GPIO35 = ADC1 kanaal 7.
 // Batterijdeler op de print: 100k naar +12 V, 47k naar massa.
+// De onderste weerstand (origineel R1 = 47k) is instelbaar met SET rlow.
 static const float BAT_R_TOP = 100000.0f;
-static const float BAT_R_BOTTOM = 47000.0f;
 static const float ADC_REF = 3.6f;   // zoals in de originele sketch; fijnregelen met vcal
 
 // ---- instellingen -----------------------------------------------------------
@@ -41,7 +41,7 @@ static Preferences g_prefs;
 static BluetoothSerial SerialBT;
 
 // Kopie van de meetparameters voor de meettaak (atomair overgenomen).
-struct MeasParams { int pw, d1, d2, f, avg; float vcal, lowbat; };
+struct MeasParams { int pw, d1, d2, f, avg; float vcal, lowbat; int rlow; };
 static volatile bool g_paramsDirty = true;
 
 // ---- meetresultaten (meettaak -> loop) --------------------------------------
@@ -51,6 +51,7 @@ static int g_ringPos = 0, g_ringFill = 0;
 static uint32_t g_pulseCount = 0;   // verhoogt per puls
 static float g_vbat = 0.0f;
 static bool g_lowbat = false;
+static int g_batRaw = 0;      // ruwe ADC-waarde batterij (4095 = verzadigd)
 // werkelijke timing (gemeten), µs
 static float g_adcUs = 0, g_t1Us = 0, g_t2Us = 0, g_pwUs = 0;
 static bool g_split = false;   // om beurten s1/s2 meten (zie measureTask)
@@ -96,11 +97,13 @@ static void pulseTimerCb(void *) {
   if (g_measTask) xTaskNotifyGive(g_measTask);
 }
 
-static float readBatteryVolts(float vcal) {
+static float readBatteryVolts(float vcal, int rlowK, int &rawOut) {
   int32_t sum = 0;
   for (int i = 0; i < 16; ++i) sum += adcBattery();
+  rawOut = (int)(sum / 16);
+  float rlow = rlowK * 1000.0f;
   float vpin = (sum / 16.0f) * ADC_REF / 4095.0f;
-  float v = vpin * (BAT_R_TOP + BAT_R_BOTTOM) / BAT_R_BOTTOM * vcal;
+  float v = vpin * (BAT_R_TOP + rlow) / rlow * vcal;
   return v < 0.9f ? 0.0f : v;
 }
 
@@ -116,7 +119,7 @@ static void measureTask(void *) {
 
     if (g_paramsDirty) {
       portENTER_CRITICAL(&g_mux);
-      p = {g_cfg.pw, g_cfg.d1, g_cfg.d2, g_cfg.f, g_cfg.avg, g_cfg.vcal, g_cfg.lowbat};
+      p = {g_cfg.pw, g_cfg.d1, g_cfg.d2, g_cfg.f, g_cfg.avg, g_cfg.vcal, g_cfg.lowbat, g_cfg.rlow};
       g_paramsDirty = false;
       portEXIT_CRITICAL(&g_mux);
       esp_timer_stop(g_pulseTimer);
@@ -131,7 +134,8 @@ static void measureTask(void *) {
 
     // Batterij elke 500 ms (tussen twee pulsen, nooit tijdens een meting).
     if (now - lastBat > 500000 || vbatFilt < 0) {
-      float v = readBatteryVolts(p.vcal);
+      int braw = 0;
+      float v = readBatteryVolts(p.vcal, p.rlow, braw);
       vbatFilt = vbatFilt < 0 ? v : vbatFilt * 0.7f + v * 0.3f;
       bool low = g_lowbat;
       if (p.lowbat > 0) {
@@ -141,7 +145,7 @@ static void measureTask(void *) {
         low = false;
       }
       portENTER_CRITICAL(&g_mux);
-      g_vbat = vbatFilt; g_lowbat = low;
+      g_vbat = vbatFilt; g_lowbat = low; g_batRaw = braw;
       portEXIT_CRITICAL(&g_mux);
       lastBat = now;
     }
@@ -220,11 +224,11 @@ static void sendCfg() {
   char buf[200];
   portENTER_CRITICAL(&g_mux);
   pi::Settings c = g_cfg;
-  float adc = g_adcUs, t1 = g_t1Us, t2 = g_t2Us, pw = g_pwUs; bool split = g_split;
+  float adc = g_adcUs, t1 = g_t1Us, t2 = g_t2Us, pw = g_pwUs; bool split = g_split; int braw = g_batRaw;
   portEXIT_CRITICAL(&g_mux);
   pi::formatCfg(c, buf, sizeof buf);
   sendLine(buf);
-  snprintf(buf, sizeof buf, "INFO,adc_us=%.1f,pw_us=%.1f,t1_us=%.1f,t2_us=%.1f,split=%d", adc, pw, t1, t2, split ? 1 : 0);
+  snprintf(buf, sizeof buf, "INFO,adc_us=%.1f,pw_us=%.1f,t1_us=%.1f,t2_us=%.1f,split=%d,batraw=%d", adc, pw, t1, t2, split ? 1 : 0, braw);
   sendLine(buf);
 }
 
@@ -239,6 +243,7 @@ static void loadSettings() {
   g_cfg.avg = g_prefs.getInt("avg", g_cfg.avg);
   g_cfg.vcal = g_prefs.getFloat("vcal", g_cfg.vcal);
   g_cfg.lowbat = g_prefs.getFloat("lowbat", g_cfg.lowbat);
+  g_cfg.rlow = g_prefs.getInt("rlow", g_cfg.rlow);
   g_cfg.legacy = g_prefs.getBool("legacy", g_cfg.legacy);
   if (g_prefs.isKey("name")) g_prefs.getString("name", g_cfg.name, sizeof g_cfg.name);
   g_prefs.end();
@@ -257,6 +262,7 @@ static void saveSettings() {
   g_prefs.putInt("avg", c.avg);
   g_prefs.putFloat("vcal", c.vcal);
   g_prefs.putFloat("lowbat", c.lowbat);
+  g_prefs.putInt("rlow", c.rlow);
   g_prefs.putBool("legacy", c.legacy);
   g_prefs.putString("name", c.name);
   g_prefs.end();
@@ -395,11 +401,11 @@ void loop() {
   // Elke 10 s gemeten timing op de debugpoort.
   if (nowMs - g_lastInfo >= 10000) {
     g_lastInfo = nowMs;
-    char buf[100];
+    char buf[128];
     portENTER_CRITICAL(&g_mux);
-    float adc = g_adcUs, t1 = g_t1Us, t2 = g_t2Us, pw = g_pwUs; bool split = g_split;
+    float adc = g_adcUs, t1 = g_t1Us, t2 = g_t2Us, pw = g_pwUs; bool split = g_split; int braw = g_batRaw;
     portEXIT_CRITICAL(&g_mux);
-    snprintf(buf, sizeof buf, "INFO,adc_us=%.1f,pw_us=%.1f,t1_us=%.1f,t2_us=%.1f,split=%d", adc, pw, t1, t2, split ? 1 : 0);
+    snprintf(buf, sizeof buf, "INFO,adc_us=%.1f,pw_us=%.1f,t1_us=%.1f,t2_us=%.1f,split=%d,batraw=%d", adc, pw, t1, t2, split ? 1 : 0, braw);
     Serial.println(buf);
   }
 

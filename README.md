@@ -36,6 +36,16 @@ Kant-en-klare `.bin`-bestanden staan ook bij elke CI-run (artifact `firmware-cor
 | Disconnect | `ESP.restart()` | blijft gewoon wachten op een nieuwe verbinding |
 | Lage batterij | — | pulsen stoppen onder 9,5 V (instelbaar, hysterese 0,3 V), melding `ERR,lowbat` |
 
+### Batterijmeting (belangrijk)
+
+De deler op de print (R2 = 100k naar B+, R1 = 47k naar massa) geeft bij 12 V zo'n **3,8 V** op D35. Dat is meer dan de
+ESP32-ADC kan meten (± 3,1 V bij 11 dB). Boven ongeveer 10 V blijft de spanning dan op **11,26 V** hangen (`batraw` ≈ 4095).
+Dat is ook iets boven de 3,3 V-voeding van de ESP32; de 100k beperkt de stroom, maar netjes is het niet.
+
+**Oplossing:** vervang R1 (47k) door **22k**. Dan geeft 14,4 V maximaal 2,6 V op de pin. Stuur daarna `SET rlow 22` en `SAVE`,
+en fijnregel met `vcal` tegen je multimeter. Zolang R1 47k is, werkt de lowbat-beveiliging rond 9,5 V wel (daar is de ADC nog
+niet verzadigd), maar de getoonde spanning boven ± 10 V klopt niet.
+
 ### Tekstprotocol
 
 Elke regel eindigt op `\n`. Je kunt het protocol testen met een seriële terminal-app op Android
@@ -53,6 +63,7 @@ App → detector:
 | `SET avg 4` | middeling 1–32 pulsen |
 | `SET vcal 1.02` | batterijkalibratie 0.8–1.2 |
 | `SET lowbat 9.5` | batterijgrens in volt (0 = uit, handig om op de werkbank via USB te testen) |
+| `SET rlow 22` | onderste weerstand van de batterijdeler in kΩ (10–100, standaard 47 = R1 op de print), zie *Batterijmeting* |
 | `SET legacy 1` | stuur het oude `<signaal/freq/duty/volt>`-formaat (voor de oude N.E.C.O-app) |
 | `SET name Mijn_PI` | Bluetooth-naam (actief na `SAVE` en herstart) |
 | `SAVE` | huidige instellingen blijvend opslaan |
@@ -68,8 +79,8 @@ Detector → app:
 
 ```
 D,<s1>,<s2>,<vbat>         ~28 Hz, ruwe 12-bit waarden (gemiddelde van de laatste avg pulsen), batterij in V
-CFG,pw=130,d1=20,d2=60,f=60,avg=4,vcal=1.000,lowbat=9.5,legacy=0,name=ESP32_Spirit_PI-3,fw=3.0.1
-INFO,adc_us=..,pw_us=..,t1_us=..,t2_us=..,split=0|1   gemeten werkelijke timing
+CFG,pw=130,d1=20,d2=60,f=60,avg=4,vcal=1.000,lowbat=9.5,rlow=47,legacy=0,name=ESP32_Spirit_PI-3,fw=3.0.1
+INFO,adc_us=..,pw_us=..,t1_us=..,t2_us=..,split=0|1,batraw=..   gemeten timing + ruwe batterij-ADC
 OK  |  OK,reboot  |  ERR,<range|value|syntax|unknown|unknown_key|too_long|lowbat>
 ```
 

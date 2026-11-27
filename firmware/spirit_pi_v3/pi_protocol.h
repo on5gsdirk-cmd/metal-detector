@@ -21,6 +21,9 @@ static const int FREQ_MIN = 20,    FREQ_MAX = 200,   FREQ_DEF = 60;
 static const int AVG_MIN = 1,   AVG_MAX = 32,  AVG_DEF = 4;
 static const float VCAL_MIN = 0.8f, VCAL_MAX = 1.2f, VCAL_DEF = 1.0f;
 static const float LOWBAT_MIN = 0.0f, LOWBAT_MAX = 14.0f, LOWBAT_DEF = 9.5f; // 0 = uit
+// Onderste weerstand van de batterijdeler (kOhm); de bovenste is 100k (R2).
+// Origineel 47k: dan zit de ADC boven ~10 V al op zijn maximum. 22k meet tot ~15 V.
+static const int RLOW_MIN = 10, RLOW_MAX = 100, RLOW_DEF = 47;
 static const int BTNAME_LEN = 31;
 static const char *const BTNAME_DEF = "ESP32_Spirit_PI-3";
 
@@ -32,13 +35,14 @@ struct Settings {
   int avg;       // middeling over N pulsen
   float vcal;    // kalibratiefactor batterijspanning
   float lowbat;  // pulsen stoppen onder deze spanning (V), 0 = uit
+  int rlow;      // onderste delerweerstand in kOhm
   bool legacy;   // oud <a/b/c/d>-formaat sturen (N.E.C.O-app)
   char name[BTNAME_LEN + 1]; // Bluetooth-naam (actief na herstart)
 };
 
 inline void setDefaults(Settings &s) {
   s.pw = PW_DEF; s.d1 = D1_DEF; s.d2 = D2_DEF; s.f = FREQ_DEF; s.avg = AVG_DEF;
-  s.vcal = VCAL_DEF; s.lowbat = LOWBAT_DEF; s.legacy = false;
+  s.vcal = VCAL_DEF; s.lowbat = LOWBAT_DEF; s.rlow = RLOW_DEF; s.legacy = false;
   strncpy(s.name, BTNAME_DEF, BTNAME_LEN); s.name[BTNAME_LEN] = 0;
 }
 
@@ -53,6 +57,7 @@ inline void sanitize(Settings &s) {
   s.avg = clampv(s.avg, AVG_MIN, AVG_MAX);
   if (!(s.vcal >= VCAL_MIN && s.vcal <= VCAL_MAX)) s.vcal = VCAL_DEF; // vangt ook NaN
   if (!(s.lowbat >= LOWBAT_MIN && s.lowbat <= LOWBAT_MAX)) s.lowbat = LOWBAT_DEF;
+  s.rlow = clampv(s.rlow, RLOW_MIN, RLOW_MAX);
   s.name[BTNAME_LEN] = 0;
   if (s.name[0] == 0) { strncpy(s.name, BTNAME_DEF, BTNAME_LEN); s.name[BTNAME_LEN] = 0; }
 }
@@ -187,6 +192,10 @@ inline Result handleLine(Settings &s, char *line) {
     if (!parseFloatStrict(val, fv)) goto badval;
     if (fv < LOWBAT_MIN || fv > LOWBAT_MAX) goto range;
     s.lowbat = fv;
+  } else if (ieq(key, "rlow")) {
+    if (!parseIntStrict(val, iv)) goto badval;
+    if (iv < RLOW_MIN || iv > RLOW_MAX) goto range;
+    s.rlow = iv;
   } else if (ieq(key, "legacy")) {
     if (!parseIntStrict(val, iv) || (iv != 0 && iv != 1)) goto badval;
     s.legacy = iv == 1;
@@ -243,8 +252,8 @@ class LineReader {
 
 // ---- uitgaande regels -----------------------------------------------------
 inline int formatCfg(const Settings &s, char *out, size_t n) {
-  return snprintf(out, n, "CFG,pw=%d,d1=%d,d2=%d,f=%d,avg=%d,vcal=%.3f,lowbat=%.1f,legacy=%d,name=%s,fw=%s",
-                  s.pw, s.d1, s.d2, s.f, s.avg, (double)s.vcal, (double)s.lowbat,
+  return snprintf(out, n, "CFG,pw=%d,d1=%d,d2=%d,f=%d,avg=%d,vcal=%.3f,lowbat=%.1f,rlow=%d,legacy=%d,name=%s,fw=%s",
+                  s.pw, s.d1, s.d2, s.f, s.avg, (double)s.vcal, (double)s.lowbat, s.rlow,
                   s.legacy ? 1 : 0, s.name, PI_FW_VERSION);
 }
 
