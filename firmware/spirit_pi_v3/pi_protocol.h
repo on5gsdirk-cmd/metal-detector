@@ -17,7 +17,7 @@ namespace pi {
 static const int PW_MIN = 20,   PW_MAX = 300,  PW_DEF = 130;
 static const int D1_MIN = 8,    D1_MAX = 150,  D1_DEF = 20;
 static const int D2_GAP = 10,   D2_MAX = 300,  D2_DEF = 60;   // d2 >= d1 + D2_GAP
-static const int F_MIN = 20,    F_MAX = 200,   F_DEF = 60;
+static const int FREQ_MIN = 20,    FREQ_MAX = 200,   FREQ_DEF = 60;
 static const int AVG_MIN = 1,   AVG_MAX = 32,  AVG_DEF = 4;
 static const float VCAL_MIN = 0.8f, VCAL_MAX = 1.2f, VCAL_DEF = 1.0f;
 static const float LOWBAT_MIN = 0.0f, LOWBAT_MAX = 14.0f, LOWBAT_DEF = 9.5f; // 0 = uit
@@ -37,7 +37,7 @@ struct Settings {
 };
 
 inline void setDefaults(Settings &s) {
-  s.pw = PW_DEF; s.d1 = D1_DEF; s.d2 = D2_DEF; s.f = F_DEF; s.avg = AVG_DEF;
+  s.pw = PW_DEF; s.d1 = D1_DEF; s.d2 = D2_DEF; s.f = FREQ_DEF; s.avg = AVG_DEF;
   s.vcal = VCAL_DEF; s.lowbat = LOWBAT_DEF; s.legacy = false;
   strncpy(s.name, NAME_DEF, NAME_MAX); s.name[NAME_MAX] = 0;
 }
@@ -49,7 +49,7 @@ inline void sanitize(Settings &s) {
   s.pw = clampv(s.pw, PW_MIN, PW_MAX);
   s.d1 = clampv(s.d1, D1_MIN, D1_MAX);
   s.d2 = clampv(s.d2, s.d1 + D2_GAP, D2_MAX);
-  s.f = clampv(s.f, F_MIN, F_MAX);
+  s.f = clampv(s.f, FREQ_MIN, FREQ_MAX);
   s.avg = clampv(s.avg, AVG_MIN, AVG_MAX);
   if (!(s.vcal >= VCAL_MIN && s.vcal <= VCAL_MAX)) s.vcal = VCAL_DEF; // vangt ook NaN
   if (!(s.lowbat >= LOWBAT_MIN && s.lowbat <= LOWBAT_MAX)) s.lowbat = LOWBAT_DEF;
@@ -112,8 +112,8 @@ inline Result applyLegacy(Settings &s, char c) {
   switch (c) {
     case 'n': s.pw = clampv(s.pw + 10, PW_MIN, PW_MAX); break;
     case 'm': s.pw = clampv(s.pw - 10, PW_MIN, PW_MAX); break;
-    case 'j': s.f = clampv(s.f + 10, F_MIN, F_MAX); break;
-    case 'k': s.f = clampv(s.f - 10, F_MIN, F_MAX); break;
+    case 'j': s.f = clampv(s.f + 10, FREQ_MIN, FREQ_MAX); break;
+    case 'k': s.f = clampv(s.f - 10, FREQ_MIN, FREQ_MAX); break;
     case 'p': {
       char keep[NAME_MAX + 1];
       memcpy(keep, s.name, sizeof keep);
@@ -173,7 +173,7 @@ inline Result handleLine(Settings &s, char *line) {
     s.d2 = iv;
   } else if (ieq(key, "f")) {
     if (!parseIntStrict(val, iv)) goto badval;
-    if (iv < F_MIN || iv > F_MAX) goto range;
+    if (iv < FREQ_MIN || iv > FREQ_MAX) goto range;
     s.f = iv;
   } else if (ieq(key, "avg")) {
     if (!parseIntStrict(val, iv)) goto badval;

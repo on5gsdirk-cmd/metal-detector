@@ -73,8 +73,8 @@ static inline int adcBattery() { int v = 0; adc_oneshot_read(g_adc, ADC_CHANNEL_
 #else
 static void adcInit() {
   adc1_config_width(ADC_WIDTH_BIT_12);
-  adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_11);
-  adc1_config_channel_atten(ADC1_CHANNEL_7, ADC_ATTEN_DB_11);
+  adc1_config_channel_atten(ADC1_CHANNEL_0, (adc_atten_t)3);  // 11 dB
+  adc1_config_channel_atten(ADC1_CHANNEL_7, (adc_atten_t)3);  // 11 dB
 }
 static inline int adcSignal() { return adc1_get_raw(ADC1_CHANNEL_0); }
 static inline int adcBattery() { return adc1_get_raw(ADC1_CHANNEL_7); }

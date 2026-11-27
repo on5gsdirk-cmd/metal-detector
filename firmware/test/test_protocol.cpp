@@ -67,14 +67,14 @@ int main() {
   applyLegacy(s, 'm'); applyLegacy(s, 'm'); CHECK(s.pw == 120);
   applyLegacy(s, 'j'); CHECK(s.f == 70);
   for (int i = 0; i < 20; ++i) applyLegacy(s, 'k');
-  CHECK(s.f == F_MIN);   // nooit 0
+  CHECK(s.f == FREQ_MIN);   // nooit 0
   applyLegacy(s, 'p'); CHECK(s.f == 60 && s.pw == 130);
 
   // sanitize
   Settings bad; setDefaults(bad);
   bad.f = 0; bad.pw = 9999; bad.d1 = 100; bad.d2 = 50; bad.vcal = 0.0f / 0.0f; bad.avg = 0; bad.name[0] = 0;
   sanitize(bad);
-  CHECK(bad.f == F_MIN && bad.pw == PW_MAX && bad.d2 == 110 && bad.vcal == 1.0f && bad.avg == 1);
+  CHECK(bad.f == FREQ_MIN && bad.pw == PW_MAX && bad.d2 == 110 && bad.vcal == 1.0f && bad.avg == 1);
   CHECK(strcmp(bad.name, NAME_DEF) == 0);
 
   // LineReader
